@@ -1,0 +1,13 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test (warnings are errors, ASan and UBSan on)
+        run: make test
+      - name: Build the CLI
+        run: |
+          make password_analyzer
+          printf 'password\nk9#Vq2$mLx8@Zp4!\n' | ./password_analyzer --stdin
