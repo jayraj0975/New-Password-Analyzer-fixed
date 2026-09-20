@@ -1,6 +1,6 @@
 # Password Strength Analyzer
 
-[![ci](https://github.com/jayraj0975/New-Password-Analyzer-fixed/actions/workflows/ci.yml/badge.svg)](https://github.com/jayraj0975/New-Password-Analyzer-fixed/actions/workflows/ci.yml)
+[![ci](https://github.com/jayraj0975/password-strength-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/jayraj0975/password-strength-analyzer/actions/workflows/ci.yml)
 
 A small C++17 library and command-line tool that estimates how hard a password is to guess. It has no
 dependencies, never prints the password back, and is built with warnings as errors and tested under
