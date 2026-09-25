@@ -2,6 +2,10 @@
 
 [![ci](https://github.com/jayraj0975/password-strength-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/jayraj0975/password-strength-analyzer/actions/workflows/ci.yml)
 
+> **Educational estimator. Do not use it to decide whether a password is safe to use.** It rests on three assumptions,
+> all stated below: one assumed attacker speed, a short built-in list of common passwords, and characters treated as
+> if they were chosen at random.
+
 A small C++17 library and command-line tool that estimates how hard a password is to guess. It has no
 dependencies, never prints the password back, and is built with warnings as errors and tested under
 AddressSanitizer and UBSan.
@@ -28,6 +32,8 @@ make test                # unit tests (ASan + UBSan)
 make password_analyzer
 ./password_analyzer                  # interactive; input is hidden on a terminal
 ./password_analyzer --demo           # a few masked examples
+./password_analyzer --rate 1e8       # assume a slower attacker (guesses per second)
+./password_analyzer --compare-rates  # show the crack time at 1e8, 1e10 and 1e12 guesses per second
 printf 'hunter2\nk9#Vq2$mLx8@Zp4!\n' | ./password_analyzer --stdin
 ```
 
@@ -36,9 +42,22 @@ printf 'hunter2\nk9#Vq2$mLx8@Zp4!\n' | ./password_analyzer --stdin
  105.1 bits  Very Strong  16 chars
 ```
 
-The library is `include/password_analyzer.hpp` plus `src/password_analyzer.cpp`; call `pwa::analyze(password)`.
+The library is `include/password_analyzer.hpp` plus `src/password_analyzer.cpp`; call `pwa::analyze(password)`, or
+`pwa::analyze(password, guesses_per_second)` to choose the attacker speed. The speed only changes the crack time, never
+the bit estimate or the rating, and a rate that is not finite and positive throws `std::invalid_argument`.
+
+The default of 10^10 guesses per second is **one assumed number, not "the" attacker speed**: it stands for an offline
+attack on a fast hash with a serious GPU rig. Real attackers range far on both sides of it, which is why the rate is a
+parameter and `--compare-rates` prints three.
 
 ## Limits, stated plainly
+
+The three assumptions again, because they decide how far the number can be trusted:
+
+1. **A fixed guess rate** (10^10 per second by default, configurable, never measured).
+2. **A short built-in list of common passwords**, not a full dictionary or a breached-password corpus.
+3. **An entropy-style heuristic**, not a model of how real cracking tools work (they use dictionaries, rules, keyboard
+   walks, leaked passwords and per-target guesses).
 
 - **It is an upper bound, and an educational one.** It assumes characters are chosen at random. Human-chosen
   passwords are far weaker: `Tr0ub4dor&3` gets about 72 bits here, but it is a dictionary word with common substitutions

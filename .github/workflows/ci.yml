@@ -13,3 +13,12 @@ jobs:
         run: |
           make password_analyzer
           printf 'password\nk9#Vq2$mLx8@Zp4!\n' | ./password_analyzer --stdin
+      - name: The attacker-speed option works, and bad values are refused
+        run: |
+          printf '1\nk9#Vq2$mLx8@Zp4!\n3\n' | ./password_analyzer --rate 1e8 --compare-rates | tee out.txt
+          grep -q "ASSUMED 1e+08 guesses/s" out.txt
+          grep -q "at 1e+12 guesses/s" out.txt
+          for bad in 0 -5 abc nan inf ""; do
+            if ./password_analyzer --rate "$bad" >/dev/null 2>&1; then echo "accepted --rate '$bad'"; exit 1; fi
+          done
+          ./password_analyzer --help | grep -q "Educational\|educational"

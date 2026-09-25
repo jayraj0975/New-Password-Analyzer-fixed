@@ -4,7 +4,9 @@
 // in bits, after discounting the parts a real attacker would not have to search: repeated
 // characters, keyboard and alphabet runs, and passwords from a list of very common ones.
 //
-// It is an educational heuristic, not a guarantee. See the README for its limits.
+// It is an educational heuristic, NOT a tool for deciding whether a password is safe to use. Its assumptions
+// (a fixed guess rate, a short built-in common-password list, characters treated as chosen at random) are
+// stated in the README.
 #pragma once
 
 #include <string>
@@ -25,14 +27,22 @@ struct Analysis {
     int longest_run = 0;           // longest ascending or descending alphabet/keyboard run
     bool common = false;           // matches a very common password (possibly disguised)
     Rating rating = Rating::VeryWeak;
-    double crack_seconds = 0;      // average time at kAssumedGuessesPerSecond
+    double crack_seconds = 0;      // average time at guesses_per_second
+    double guesses_per_second = 0; // the attacker speed crack_seconds assumes (an assumption, not a measurement)
     std::vector<std::string> suggestions;
 };
 
-// Offline attack on a fast hash with a serious GPU rig. Slow hashes (bcrypt, Argon2) are far better.
+// The default attacker speed: an offline attack on a fast hash with a serious GPU rig. It is one assumed
+// number, not "the" attacker speed; slow password hashes (bcrypt, scrypt, Argon2) are far harder to attack.
 constexpr double kAssumedGuessesPerSecond = 1e10;
 
-Analysis analyze(const std::string &password);
+// Analyses `password`. `guesses_per_second` only affects crack_seconds (never bits or the rating), so
+// callers can compare attacker speeds. Throws std::invalid_argument unless it is finite and positive.
+Analysis analyze(const std::string &password, double guesses_per_second = kAssumedGuessesPerSecond);
+
+// Average time to find a password worth `bits` bits, at `guesses_per_second` (half the space is searched
+// on average). Throws std::invalid_argument unless the rate is finite and positive.
+double crack_seconds(double bits, double guesses_per_second);
 
 const char *rating_name(Rating r);
 

@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <stdexcept>
 #include <string>
 #include <unordered_set>
 
@@ -165,9 +166,18 @@ std::string format_duration(double seconds) {
     return "more than a million years";
 }
 
-Analysis analyze(const std::string &password) {
+double crack_seconds(double bits, double guesses_per_second) {
+    if (!std::isfinite(guesses_per_second) || guesses_per_second <= 0)
+        throw std::invalid_argument("guesses_per_second must be a finite number greater than zero");
+    // Average case: an attacker finds it after searching half the space.
+    return bits <= 1 ? 0.0 : std::pow(2.0, bits - 1.0) / guesses_per_second;
+}
+
+Analysis analyze(const std::string &password, double guesses_per_second) {
+    crack_seconds(0, guesses_per_second);  // validate the rate up front, whatever the password
     Analysis a;
     a.length = password.size();
+    a.guesses_per_second = guesses_per_second;
 
     for (char ch : password) {
         unsigned char c = static_cast<unsigned char>(ch);
@@ -200,8 +210,7 @@ Analysis analyze(const std::string &password) {
     else if (a.bits < 80) a.rating = Rating::Strong;
     else a.rating = Rating::VeryStrong;
 
-    // Average case: an attacker finds it after searching half the space.
-    a.crack_seconds = a.bits <= 1 ? 0.0 : std::pow(2.0, a.bits - 1.0) / kAssumedGuessesPerSecond;
+    a.crack_seconds = pwa::crack_seconds(a.bits, guesses_per_second);
 
     if (a.common) a.suggestions.push_back("This is, or is a small variation of, a very common password. Change it entirely.");
     if (a.length < 12) a.suggestions.push_back("Make it longer: 12 or more characters, ideally a random passphrase of 4+ words.");

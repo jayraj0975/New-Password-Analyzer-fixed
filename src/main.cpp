@@ -1,4 +1,6 @@
+#include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <limits>
@@ -15,6 +17,10 @@
 
 namespace {
 
+// The attacker speed used for crack-time estimates; --rate changes it, --compare-rates adds a comparison.
+double g_rate = pwa::kAssumedGuessesPerSecond;
+bool g_compare_rates = false;
+
 void print_report(const pwa::Analysis &a) {
     std::printf("Password Analysis\n-----------------\n");
     std::printf("Length:            %zu\n", a.length);
@@ -24,8 +30,13 @@ void print_report(const pwa::Analysis &a) {
     std::printf("Common password:   %s\n", a.common ? "yes" : "no");
     std::printf("Estimated bits:    %.1f (assumes characters chosen at random)\n", a.bits);
     std::printf("Rating:            %s\n", pwa::rating_name(a.rating));
-    std::printf("Average offline crack time (%.0e guesses/s, fast hash): %s\n",
-                pwa::kAssumedGuessesPerSecond, pwa::format_duration(a.crack_seconds).c_str());
+    std::printf("Average offline crack time at an ASSUMED %.0e guesses/s: %s\n",
+                a.guesses_per_second, pwa::format_duration(a.crack_seconds).c_str());
+    if (g_compare_rates) {
+        for (double rate : {1e8, 1e10, 1e12})
+            std::printf("  at %.0e guesses/s: %s\n", rate,
+                        pwa::format_duration(pwa::crack_seconds(a.bits, rate)).c_str());
+    }
     std::printf("Suggestions:\n");
     for (const std::string &s : a.suggestions) std::printf("  - %s\n", s.c_str());
     std::printf("Note: this is an upper bound. Passwords built from words, names or dates are\n"
@@ -91,24 +102,53 @@ int interactive() {
             continue;
         }
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        if (choice == 1) print_report(pwa::analyze(read_hidden("Enter password (hidden): ")));
+        if (choice == 1) print_report(pwa::analyze(read_hidden("Enter password (hidden): "), g_rate));
         else if (choice == 2) run_demo();
         else if (choice == 3) return 0;
         else std::printf("Invalid option.\n");
     }
 }
 
+int usage(const char *prog, int code) {
+    std::printf("Usage: %s [--rate N] [--compare-rates] [--stdin | --demo]\n"
+                "  (no mode)         interactive menu, input hidden on a terminal\n"
+                "  --stdin           read one password per line from stdin, print one verdict per line\n"
+                "  --demo            score a few sample passwords\n"
+                "  --rate N          assume an attacker making N guesses per second (default %.0e)\n"
+                "  --compare-rates   also show the crack time at 1e8, 1e10 and 1e12 guesses per second\n"
+                "\nAn educational estimator, not a tool for deciding whether a password is safe to use.\n",
+                prog, pwa::kAssumedGuessesPerSecond);
+    return code;
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
-    if (argc > 1) {
-        if (!std::strcmp(argv[1], "--stdin")) return run_stdin();
-        if (!std::strcmp(argv[1], "--demo")) return run_demo();
-        std::printf("Usage: %s [--stdin | --demo]\n"
-                    "  (no args)  interactive menu, input hidden on a terminal\n"
-                    "  --stdin    read one password per line from stdin, print one verdict per line\n"
-                    "  --demo     score a few sample passwords\n", argv[0]);
-        return std::strcmp(argv[1], "--help") == 0 ? 0 : 1;
+    enum class Mode { Interactive, Stdin, Demo } mode = Mode::Interactive;
+    for (int i = 1; i < argc; ++i) {
+        const char *arg = argv[i];
+        if (!std::strcmp(arg, "--help")) return usage(argv[0], 0);
+        if (!std::strcmp(arg, "--stdin")) mode = Mode::Stdin;
+        else if (!std::strcmp(arg, "--demo")) mode = Mode::Demo;
+        else if (!std::strcmp(arg, "--compare-rates")) g_compare_rates = true;
+        else if (!std::strcmp(arg, "--rate")) {
+            if (i + 1 >= argc) { std::fprintf(stderr, "--rate needs a number\n"); return 2; }
+            char *end = nullptr;
+            double rate = std::strtod(argv[++i], &end);
+            if (end == argv[i] || *end != '\0' || !std::isfinite(rate) || rate <= 0) {
+                std::fprintf(stderr, "--rate must be a finite number greater than zero, for example 1e10\n");
+                return 2;
+            }
+            g_rate = rate;
+        } else {
+            std::fprintf(stderr, "unknown option: %s\n", arg);
+            return usage(argv[0], 1);
+        }
+    }
+    switch (mode) {
+        case Mode::Stdin: return run_stdin();
+        case Mode::Demo: return run_demo();
+        case Mode::Interactive: break;
     }
     return interactive();
 }

@@ -1,6 +1,8 @@
 // Dependency-free tests. Build and run with `make test`.
 #include <cmath>
 #include <cstdio>
+#include <limits>
+#include <stdexcept>
 #include <string>
 
 #include "password_analyzer.hpp"
@@ -76,6 +78,34 @@ int main() {
     CHECK(std::string(rating_name(Rating::Strong)) == "Strong");
     CHECK(analyze("password").crack_seconds < 1.0);
     CHECK(analyze("k9#Vq2$mLx8@Zp4!").crack_seconds > 3.15e7 * 1000);  // more than a millennium
+
+    // the assumed attacker speed is a parameter, and only changes the time, never the estimate
+    Analysis slow = analyze("k9#Vq2$mLx8@Zp4!", 1e8);
+    Analysis dflt = analyze("k9#Vq2$mLx8@Zp4!");
+    Analysis fast = analyze("k9#Vq2$mLx8@Zp4!", 1e12);
+    CHECK(dflt.guesses_per_second == kAssumedGuessesPerSecond);
+    CHECK(analyze("k9#Vq2$mLx8@Zp4!", kAssumedGuessesPerSecond).crack_seconds == dflt.crack_seconds);
+    CHECK(slow.bits == dflt.bits && fast.bits == dflt.bits && slow.rating == fast.rating);
+    CHECK(std::fabs(slow.crack_seconds / dflt.crack_seconds - 100.0) < 1e-6);    // 100x slower attacker
+    CHECK(std::fabs(dflt.crack_seconds / fast.crack_seconds - 100.0) < 1e-6);    // 100x faster attacker
+    CHECK(slow.guesses_per_second == 1e8 && fast.guesses_per_second == 1e12);
+    CHECK(crack_seconds(1.0, 1e10) == 0.0 && crack_seconds(0.0, 1e10) == 0.0);
+    CHECK(std::fabs(crack_seconds(21.0, 1.0) - std::pow(2.0, 20.0)) < 1e-6);     // half of 2^21 guesses
+
+    // an unusable rate is refused for every password, including the empty one
+    const double bad_rates[] = {0.0, -1.0, std::numeric_limits<double>::quiet_NaN(),
+                                std::numeric_limits<double>::infinity()};
+    for (double bad : bad_rates) {
+        bool threw = false;
+        try { analyze("hunter2", bad); } catch (const std::invalid_argument &) { threw = true; }
+        CHECK(threw);
+        threw = false;
+        try { analyze("", bad); } catch (const std::invalid_argument &) { threw = true; }
+        CHECK(threw);
+        threw = false;
+        try { crack_seconds(40.0, bad); } catch (const std::invalid_argument &) { threw = true; }
+        CHECK(threw);
+    }
 
     if (failures == 0) std::printf("all tests passed\n");
     return failures == 0 ? 0 : 1;
